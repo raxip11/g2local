@@ -1,0 +1,89 @@
+name: build-ipa
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+  # Weekly fresh build so the free-account 7-day expiry is never a blocker.
+  schedule:
+    - cron: "30 6 * * 1" # Mondays 06:30 UTC
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Install XcodeGen
+        run: |
+          if ! command -v xcodegen >/dev/null; then
+            brew install xcodegen
+          fi
+          xcodegen --version
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Resolve SPM (WhisperKit)
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project G2Local.xcodeproj \
+            -scheme G2Local \
+            -configuration Release
+
+      - name: Archive (unsigned — Sideloadly re-signs)
+        run: |
+          xcodebuild archive \
+            -project G2Local.xcodeproj \
+            -scheme G2Local \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/G2Local \
+            SKIP_INSTALL=NO \
+            BUILD_LIBRARY_FOR_DISTRIBUTION=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      # No -exportArchive: with CODE_SIGNING_ALLOWED=NO the export step
+      # needs provisioning tricks we don't have. Zip the app ourselves —
+      # Sideloadly re-signs the unsigned ipa anyway.
+      - name: Package ipa
+        run: |
+          rm -rf export && mkdir -p export/Payload
+          cp -R build/G2Local.xcarchive/Products/Applications/G2Local.app export/Payload/
+          cd export
+          ditto -c -k --sequesterRsrc --keepParent Payload ../G2Local.ipa
+          ls -lh ../G2Local.ipa
+
+      - name: Name artifact
+        run: cp G2Local.ipa G2Local-v$(date +%Y%m%d)-$(git rev-parse --short HEAD).ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: G2Local-ipa
+          path: G2Local-v*.ipa
+          retention-days: 30
+
+      # Optional: push the ipa to the oaksthepomchi server so the user gets
+      # ONE stable download URL: https://oaksthepomchi.com/voice/g2local/
+      # Only runs if the SSH secrets exist in the repo settings.
+      - name: Deploy to oaksthepomchi (if secrets present)
+        if: ${{ secrets.G2LOCAL_DEPLOY_SSH_PRIVATE_KEY != '' }}
+        env:
+          SSH_KEY: ${{ secrets.G2LOCAL_DEPLOY_SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.G2LOCAL_DEPLOY_USER }}
+          SSH_HOST: ${{ secrets.G2LOCAL_DEPLOY_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/g2local_deploy
+          chmod 600 ~/.ssh/g2local_deploy
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          scp -i ~/.ssh/g2local_deploy G2Local-v*.ipa \
+            "$SSH_USER@$SSH_HOST:/home/debian/g2-voice-webroot/voice/g2local/"
+          ssh -i ~/.ssh/g2local_deploy "$SSH_USER@$SSH_HOST" \
+            "cd /home/debian/g2-voice-webroot/voice/g2local && ls -1t G2Local-v*.ipa | head -1 > latest && cp \$(cat latest) G2Local.ipa && chmod 644 *.ipa && rm -f latest"

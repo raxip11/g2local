@@ -1,0 +1,9 @@
+# macOS
+.DS_Store
+xcuserdata/
+*.xcuserstate
+build/
+export/
+G2Local.ipa
+G2Local-v*.ipa
+G2Local.xcodeproj
