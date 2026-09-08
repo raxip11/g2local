@@ -1,6 +1,12 @@
 # XcodeGen spec for G2 Local.
 # CI runs: brew install xcodegen && xcodegen generate && xcodebuild archive.
 name: G2Local
+packages:
+  # Project-level declaration (required by XcodeGen). Target dependencies
+  # reference this BY NAME, not by URL.
+  WhisperKit:
+    url: https://github.com/argmaxinc/WhisperKit
+    version: 1.1.0
 options:
   bundleIdPrefix: com.oaksthepomchi
   deploymentTarget:
@@ -11,6 +17,10 @@ targets:
     platform: iOS
     sources:
       - path: G2Local
+        excludes:
+          # XcodeGen emits Info.plist itself (see info: below); including
+          # it as a source file makes generation fail.
+          - Info.plist
     info:
       path: G2Local/Info.plist
       properties:
@@ -40,9 +50,8 @@ targets:
         CODE_SIGNING_ALLOWED: NO
         ENABLE_USER_SCRIPT_SANDBOXING: NO
     dependencies:
-      - package: https://github.com/argmaxinc/WhisperKit
-        version: "1.1.0"
-        product: WhisperKit
+      # Reference by the package name declared above (XcodeGen README pattern).
+      - package: WhisperKit
 schemes:
   G2Local:
     build:
