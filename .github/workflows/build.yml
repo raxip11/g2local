@@ -39,7 +39,9 @@ jobs:
 
       - name: Archive (unsigned - Sideloadly re-signs)
         run: |
-          if ! xcodebuild archive \
+          mkdir -p build
+          set +e
+          xcodebuild archive \
             -project G2Local.xcodeproj \
             -scheme G2Local \
             -configuration Release \
@@ -48,15 +50,19 @@ jobs:
             SKIP_INSTALL=NO \
             BUILD_LIBRARY_FOR_DISTRIBUTION=NO \
             CODE_SIGNING_ALLOWED=NO \
-            > build/xcodebuild-archive.log 2>&1; then
-            # Self-report: surface every compiler error as a GitHub
-            # annotation (readable without auth) + the last 40 log lines.
-            echo "=== xcodebuild archive FAILED — compiler errors ==="
+            > build/xcodebuild-archive.log 2>&1
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            # Self-report: each compiler error becomes a GitHub annotation
+            # (readable without auth), plus the last lines as one annotation.
+            echo "::error::xcodebuild archive failed (exit $status) — compiler errors follow"
             grep -E "error:" build/xcodebuild-archive.log | sort -u | head -40 \
-              | while IFS= read -r line; do echo "error::G2Local — $line"; done
-            echo "=== last 40 log lines ==="
-            tail -40 build/xcodebuild-archive.log
-            echo "error::xcodebuild archive failed (see annotations for compiler errors)"
+              | while IFS= read -r line; do
+                  echo "::error::G2Local: $line"
+                done || true
+            echo "::error::tail: $(tail -8 build/xcodebuild-archive.log | tr '\n' ' | ')"
+            tail -80 build/xcodebuild-archive.log || true
             exit 1
           fi
 
