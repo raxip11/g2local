@@ -3,10 +3,10 @@ name: build-ipa
 on:
   push:
     branches: [main]
-  workflow_dispatch: {}
-  # Weekly fresh build so the free-account 7-day expiry is never a blocker.
-  schedule:
-    - cron: "30 6 * * 1" # Mondays 06:30 UTC
+  # NOTE: workflow_dispatch + schedule are NOT allowed on free-plan private
+  # repos (whole workflow fails validation -> runs die with 0 jobs).
+  # Re-add both here once we have a public repo or a premium plan; the
+  # Monday-rebuild ritual is: push a tiny commit (I can script it).
 
 jobs:
   build:
