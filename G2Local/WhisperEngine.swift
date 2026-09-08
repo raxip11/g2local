@@ -44,9 +44,11 @@ final class WhisperEngine: @unchecked Sendable {
         lock.unlock()
         guard !alreadyLoaded else { return }
 
-        // Plain convenience init — proven by Argmax's own sample app.
-        // (verbose/logLevel params pull in swift-log types; keep it minimal.)
-        let wk = try await WhisperKit(model: name)
+        // Convenience init. `load: true` is REQUIRED: with the model name
+        // (no modelFolder), WhisperKit defaults load to false — it would
+        // download the model files but never load them into memory, and
+        // every transcribe call would fail.
+        let wk = try await WhisperKit(model: name, load: true)
 
         lock.lock()
         kit = wk

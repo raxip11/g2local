@@ -39,7 +39,7 @@ jobs:
 
       - name: Archive (unsigned - Sideloadly re-signs)
         run: |
-          xcodebuild archive \
+          if ! xcodebuild archive \
             -project G2Local.xcodeproj \
             -scheme G2Local \
             -configuration Release \
@@ -47,7 +47,18 @@ jobs:
             -archivePath build/G2Local \
             SKIP_INSTALL=NO \
             BUILD_LIBRARY_FOR_DISTRIBUTION=NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            > build/xcodebuild-archive.log 2>&1; then
+            # Self-report: surface every compiler error as a GitHub
+            # annotation (readable without auth) + the last 40 log lines.
+            echo "=== xcodebuild archive FAILED — compiler errors ==="
+            grep -E "error:" build/xcodebuild-archive.log | sort -u | head -40 \
+              | while IFS= read -r line; do echo "error::G2Local — $line"; done
+            echo "=== last 40 log lines ==="
+            tail -40 build/xcodebuild-archive.log
+            echo "error::xcodebuild archive failed (see annotations for compiler errors)"
+            exit 1
+          fi
 
       # No -exportArchive: with CODE_SIGNING_ALLOWED=NO the export step
       # needs provisioning tricks we don't have. Zip the app ourselves -
