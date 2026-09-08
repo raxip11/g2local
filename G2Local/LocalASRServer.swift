@@ -78,7 +78,7 @@ final class LocalASRServer {
                 else { self.receive(conn, buffered: all) }
                 return
             }
-            let head = String(decoding: all[..<end.lowerBound], as: UTF8.string.self)
+            let head = String(decoding: all[..<end.lowerBound], as: UTF8.self)
             let bodyStart = end.upperBound
             let contentLength = Self.contentLength(of: head)
             let have = all.count - bodyStart
@@ -159,7 +159,7 @@ final class LocalASRServer {
                     let result = try await self.transcribe(body)
                     let seconds = Date().timeIntervalSince(started)
                     let out = #"{"text":"\#(Self.jsonEscape(result.text))","language":"\#(result.language)","#
-                             +   #""duration":\#(result.duration),#
+                             +   #""duration":\#(result.duration),"#
                              +   #""seconds":\#(String(format: "%.2f", seconds))}"#
                     self.onResult?(result.text, seconds)
                     self.send(conn, status: 200, headers: "", body: Data(out.utf8))
@@ -197,7 +197,7 @@ final class LocalASRServer {
         let task = (obj["task"] as? String) ?? "transcribe"
         let language = obj["language"] as? String
         let duration = Double(floats.count) / 16_000.0
-        let r = try engine.transcribe(floats: floats, task: task, language: language)
+        let r = try await engine.transcribe(floats: floats, task: task, language: language)
         return (r.text, r.language ?? (language ?? "en"), duration)
     }
 
