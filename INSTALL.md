@@ -80,3 +80,5 @@ The install expires after 7 days. Fixes:
 - **Page can't reach localhost** — Even Hub webview must allow mixed
   content to `http://127.0.0.1` (loopback is usually exempt); the page
   auto-falls back to cloud, check the lens for "Error:" if not.
+
+<!-- retrigger 2026-09-08 -->
