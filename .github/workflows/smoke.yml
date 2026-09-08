@@ -1,0 +1,12 @@
+name: smoke
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  ok:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: echo "g2local smoke test: Actions works on this repo"
