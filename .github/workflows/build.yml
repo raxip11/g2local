@@ -3,10 +3,10 @@ name: build-ipa
 on:
   push:
     branches: [main]
-  # NOTE: workflow_dispatch + schedule are NOT allowed on free-plan private
-  # repos (whole workflow fails validation -> runs die with 0 jobs).
-  # Re-add both here once we have a public repo or a premium plan; the
-  # Monday-rebuild ritual is: push a tiny commit (I can script it).
+  workflow_dispatch: {}
+  # Weekly fresh build so the free-account 7-day expiry is never a blocker.
+  schedule:
+    - cron: "30 6 * * 1" # Mondays 06:30 UTC
 
 jobs:
   build:
@@ -37,7 +37,7 @@ jobs:
             -scheme G2Local \
             -configuration Release
 
-      - name: Archive (unsigned — Sideloadly re-signs)
+      - name: Archive (unsigned - Sideloadly re-signs)
         run: |
           xcodebuild archive \
             -project G2Local.xcodeproj \
@@ -50,7 +50,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO
 
       # No -exportArchive: with CODE_SIGNING_ALLOWED=NO the export step
-      # needs provisioning tricks we don't have. Zip the app ourselves —
+      # needs provisioning tricks we don't have. Zip the app ourselves -
       # Sideloadly re-signs the unsigned ipa anyway.
       - name: Package ipa
         run: |
@@ -69,21 +69,6 @@ jobs:
           path: G2Local-v*.ipa
           retention-days: 30
 
-      # Optional: push the ipa to the oaksthepomchi server so the user gets
-      # ONE stable download URL: https://oaksthepomchi.com/voice/g2local/
-      # Only runs if the SSH secrets exist in the repo settings.
-      - name: Deploy to oaksthepomchi (if secrets present)
-        if: ${{ secrets.G2LOCAL_DEPLOY_SSH_PRIVATE_KEY != '' }}
-        env:
-          SSH_KEY: ${{ secrets.G2LOCAL_DEPLOY_SSH_PRIVATE_KEY }}
-          SSH_USER: ${{ secrets.G2LOCAL_DEPLOY_USER }}
-          SSH_HOST: ${{ secrets.G2LOCAL_DEPLOY_HOST }}
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/g2local_deploy
-          chmod 600 ~/.ssh/g2local_deploy
-          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          scp -i ~/.ssh/g2local_deploy G2Local-v*.ipa \
-            "$SSH_USER@$SSH_HOST:/home/debian/g2-voice-webroot/voice/g2local/"
-          ssh -i ~/.ssh/g2local_deploy "$SSH_USER@$SSH_HOST" \
-            "cd /home/debian/g2-voice-webroot/voice/g2local && ls -1t G2Local-v*.ipa | head -1 > latest && cp \$(cat latest) G2Local.ipa && chmod 644 *.ipa && rm -f latest"
+      # Server auto-deploy is intentionally NOT in this first version of
+      # the pipeline. It will be added (gated on repo SSH secrets) after
+      # the first green build, so we keep this file minimal + valid.

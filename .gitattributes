@@ -1,0 +1,2 @@
+# Force LF line endings for everything in this repo (Windows-safe).
+* -text eol=lf
